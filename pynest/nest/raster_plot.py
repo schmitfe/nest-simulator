@@ -67,7 +67,7 @@ def extract_events(data, time=None, sel=None):
         node_id = v[0]
         if time and (t < t_min or t >= t_max):
             continue
-        if not sel or node_id in sel:
+        if (sel is None) or node_id in sel:
             val.append(v)
 
     return numpy.array(val)
@@ -208,7 +208,9 @@ def _from_memory(detec):
     return ev["times"], ev["senders"]
 
 
-def _make_plot(ts, ts1, node_ids, neurons, hist=True, hist_binwidth=5.0, grayscale=False, title=None, xlabel=None):
+def _make_plot(
+    ts, ts1, node_ids, neurons, hist=True, hist_binwidth=5.0, grayscale=False, title=None, xlabel=None, colorgroups=None
+):
     """Generic plotting routine.
 
     Constructs a raster plot along with an optional histogram (common part in
@@ -234,16 +236,19 @@ def _make_plot(ts, ts1, node_ids, neurons, hist=True, hist_binwidth=5.0, graysca
         Plot title
     xlabel : str, optional
         Label for x-axis
+    colorgroups : list, optional
+        List of tuples with color and list of node_ids to be plotted in
+        different colors
     """
     import matplotlib.pyplot as plt
 
     plt.figure()
 
     if grayscale:
-        color_marker = ".k"
+        color_marker = "k"
         color_bar = "gray"
     else:
-        color_marker = "."
+        color_marker = "tab:blue"
         color_bar = "blue"
 
     color_edge = "black"
@@ -254,12 +259,6 @@ def _make_plot(ts, ts1, node_ids, neurons, hist=True, hist_binwidth=5.0, graysca
     ylabel = "Neuron ID"
 
     if hist:
-        ax1 = plt.axes([0.1, 0.3, 0.85, 0.6])
-        plotid = plt.plot(ts1, node_ids, color_marker)
-        plt.ylabel(ylabel)
-        plt.xticks([])
-        xlim = plt.xlim()
-
         plt.axes([0.1, 0.1, 0.85, 0.17])
         t_bins = numpy.arange(numpy.amin(ts), numpy.amax(ts), float(hist_binwidth))
         n, _ = _histogram(ts, bins=t_bins)
@@ -270,12 +269,20 @@ def _make_plot(ts, ts1, node_ids, neurons, hist=True, hist_binwidth=5.0, graysca
         plt.yticks([int(x) for x in numpy.linspace(0.0, int(max(heights) * 1.1) + 5, 4)])
         plt.ylabel("Rate (Hz)")
         plt.xlabel(xlabel)
+        xlim = plt.xlim()
+
+        ax1 = plt.axes([0.1, 0.3, 0.85, 0.6])
         plt.xlim(xlim)
-        plt.axes(ax1)
+
+    if colorgroups is None or colorgroups == [(color_marker, neurons)]:
+        plotid = plt.plot(ts1, node_ids, color=color_marker, marker=".", linestyle="None")
     else:
-        plotid = plt.plot(ts1, node_ids, color_marker)
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
+        for cg in colorgroups:
+            data = numpy.array(extract_events(zip(node_ids, ts1), sel=cg[1]))
+            plotid = plt.plot(data[:, 1], data[:, 0], color=cg[0], marker=".", linestyle="None")
+
+    plt.ylabel(ylabel)
+    plt.xticks([])
 
     if title is None:
         plt.title("Raster plot")
@@ -283,7 +290,6 @@ def _make_plot(ts, ts1, node_ids, neurons, hist=True, hist_binwidth=5.0, graysca
         plt.title(title)
 
     plt.draw()
-
     return plotid
 
 
